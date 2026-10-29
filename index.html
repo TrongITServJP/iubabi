@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow, noarchive">
+  <meta name="referrer" content="no-referrer">
   <meta name="theme-color" content="#fbf4ef" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1d1718" media="(prefers-color-scheme: dark)">
-  <title>iubabi · Những lá thư</title>
-  <meta name="description" content="Nơi đọc và gửi những lá thư.">
+  <title>iubabi</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💌</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,50 +15,69 @@
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
-  <div class="wrap">
-    <header class="hero">
+  <section class="lock" id="lock" hidden>
+    <div class="lock-card">
       <svg class="hero-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C1 8.4 3 5 6.4 5c2 0 3.3 1 4.1 2.2h3C14.3 6 15.6 5 17.6 5 21 5 23 8.4 21.6 11.7 19.5 16.4 12 21 12 21z"/></svg>
-      <h1 class="brand" id="siteTitle">iubabi</h1>
-      <p class="tagline" id="siteTagline">Những lá thư gửi nhau</p>
-      <p class="hero-stat" id="heroStat" hidden></p>
-      <button class="btn btn-primary hero-write" type="button" data-write>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
-        Viết thư
+      <h1 class="brand" data-site-title>iubabi</h1>
+      <p class="lock-note">Nơi này chỉ dành cho hai mình</p>
+      <form class="lock-form" id="lockForm" novalidate>
+        <label class="field">
+          <span>Mã bí mật</span>
+          <input name="key" type="password" autocomplete="current-password" required>
+        </label>
+        <label class="check">
+          <input type="checkbox" name="remember" checked> Ghi nhớ trên máy này
+        </label>
+        <p class="form-error" id="lockError" hidden></p>
+        <button type="submit" class="btn btn-primary" id="btnUnlock">Mở thư</button>
+      </form>
+    </div>
+  </section>
+
+  <div id="app" hidden>
+    <div class="wrap">
+      <button type="button" class="icon-btn lock-btn" id="btnLock" aria-label="Khóa lại" title="Khóa lại">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
       </button>
-    </header>
 
-    <div class="notice" id="demoNotice" hidden>
-      <strong>Chế độ thử.</strong> Chưa cấu hình <code>API_URL</code> trong <code>config.js</code>,
-      nên thư chỉ được lưu tạm trên trình duyệt này.
-    </div>
+      <header class="hero">
+        <svg class="hero-heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C1 8.4 3 5 6.4 5c2 0 3.3 1 4.1 2.2h3C14.3 6 15.6 5 17.6 5 21 5 23 8.4 21.6 11.7 19.5 16.4 12 21 12 21z"/></svg>
+        <h1 class="brand" data-site-title>iubabi</h1>
+        <p class="tagline" id="siteTagline">Những lá thư gửi nhau</p>
+        <p class="hero-stat" id="heroStat" hidden></p>
+        <button class="btn btn-primary hero-write" type="button" data-write>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
+          Viết thư
+        </button>
+      </header>
 
-    <div class="toolbar">
-      <div class="tabs" role="tablist" aria-label="Lọc thư">
-        <button type="button" role="tab" data-filter="all" aria-selected="true">Tất cả <span class="count" data-count="all"></span></button>
-        <button type="button" role="tab" data-filter="owner" aria-selected="false">Thư của tôi <span class="count" data-count="owner"></span></button>
-        <button type="button" role="tab" data-filter="guest" aria-selected="false">Thư mọi người <span class="count" data-count="guest"></span></button>
+      <div class="notice" id="demoNotice" hidden>
+        <strong>Chế độ thử.</strong> Chưa cấu hình <code>API_URL</code> trong <code>config.js</code>,
+        nên thư chỉ được lưu tạm trên trình duyệt này.
       </div>
-      <label class="pill writer-filter">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
-        <select id="writerFilter" aria-label="Lọc theo người viết">
-          <option value="">Tất cả người viết</option>
-        </select>
-      </label>
-      <label class="pill search">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-        <input type="search" id="search" placeholder="Tìm thư…" aria-label="Tìm thư">
-      </label>
+
+      <div class="toolbar">
+        <div class="tabs" role="tablist" aria-label="Lọc thư">
+          <button type="button" role="tab" data-filter="all" aria-selected="true">Tất cả <span class="count" data-count="all"></span></button>
+          <button type="button" role="tab" data-filter="owner" aria-selected="false">Thư của anh <span class="count" data-count="owner"></span></button>
+          <button type="button" role="tab" data-filter="partner" aria-selected="false">Thư của em <span class="count" data-count="partner"></span></button>
+        </div>
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+          <input type="search" id="search" placeholder="Tìm thư…" aria-label="Tìm thư">
+        </label>
+      </div>
+
+      <main>
+        <p class="status" id="status" hidden></p>
+        <div class="grid" id="grid"></div>
+      </main>
     </div>
 
-    <main>
-      <p class="status" id="status" hidden></p>
-      <div class="grid" id="grid"></div>
-    </main>
+    <button class="fab" type="button" data-write aria-label="Viết thư">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
+    </button>
   </div>
-
-  <button class="fab" type="button" data-write aria-label="Viết thư">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
-  </button>
 
   <dialog id="readDialog" class="sheet" aria-labelledby="readTitle">
     <div class="sheet-bar">
@@ -81,7 +101,6 @@
       <h2 class="letter-title" id="readTitle"></h2>
       <div class="letter-body" id="readBody"></div>
       <p class="letter-sign" id="readAuthor"></p>
-      <p class="letter-more"><button type="button" class="link-btn" id="btnSameWriter"></button></p>
       <svg class="letter-seal" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C1 8.4 3 5 6.4 5c2 0 3.3 1 4.1 2.2h3C14.3 6 15.6 5 17.6 5 21 5 23 8.4 21.6 11.7 19.5 16.4 12 21 12 21z"/></svg>
     </article>
   </dialog>
@@ -97,8 +116,8 @@
 
       <div class="field-row">
         <label class="field">
-          <span>Tên của bạn</span>
-          <input name="author" maxlength="50" placeholder="Để trống nếu muốn ẩn danh" autocomplete="nickname">
+          <span>Ký tên</span>
+          <input name="author" maxlength="50" autocomplete="nickname">
         </label>
         <label class="field">
           <span>Tiêu đề</span>
@@ -107,22 +126,8 @@
       </div>
       <label class="field">
         <span>Nội dung <small id="charCount">0 / 5000</small></span>
-        <textarea name="content" rows="10" maxlength="5000" required placeholder="Viết điều bạn muốn nói…"></textarea>
+        <textarea name="content" rows="10" maxlength="5000" required placeholder="Thành phố Hồ Chí Minh, ngày … tháng … năm …"></textarea>
       </label>
-
-      <!-- Bẫy chống bot: người thật không nhìn thấy ô này -->
-      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
-
-      <details class="owner-box">
-        <summary>Tôi là chủ trang</summary>
-        <label class="field">
-          <span>Mã chủ trang</span>
-          <input name="ownerKey" type="password" autocomplete="current-password">
-        </label>
-        <label class="check">
-          <input type="checkbox" name="rememberKey"> Ghi nhớ mã trên máy này
-        </label>
-      </details>
 
       <p class="form-error" id="formError" hidden></p>
 

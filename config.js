@@ -4,6 +4,7 @@ window.APP_CONFIG = {
   API_URL: 'https://script.google.com/macros/s/AKfycbwlpg-xlvX5PQOsED1DaDzSNZrp5vjctfYJXQU2pwYXrCX17jOG70pby_CaEk40COFPxg/exec',
   SITE_TITLE: 'iubabi',
   TAGLINE: 'Những lá thư gửi nhau',
-  // Tên hiển thị mặc định khi chủ trang gửi thư mà để trống ô "Tên"
-  OWNER_NAME: 'Chủ trang',
+  // Chữ ký mặc định khi ô "Tên" để trống
+  OWNER_NAME: 'Anh',
+  PARTNER_NAME: 'Em',
 };

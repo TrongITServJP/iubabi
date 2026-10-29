@@ -10,6 +10,7 @@
   --accent-ink: #fff;
   --accent-soft: #fbe6e6;
   --airmail: #4d6fa8;
+  --lilac: #a982cf;
   --focus: #c2525e55;
   --shadow-sm: 0 1px 2px rgb(90 40 40 / .06);
   --shadow: 0 1px 2px rgb(90 40 40 / .05), 0 12px 32px -8px rgb(90 40 40 / .16);
@@ -32,6 +33,7 @@
     --accent-ink: #1d1718;
     --accent-soft: #3e2629;
     --airmail: #8aa6d6;
+    --lilac: #c4a6e6;
     --focus: #ec8a9366;
     --shadow-sm: 0 1px 2px rgb(0 0 0 / .3);
     --shadow: 0 1px 2px rgb(0 0 0 / .3), 0 12px 32px -8px rgb(0 0 0 / .5);
@@ -543,46 +545,42 @@ dialog.sheet[open]::backdrop { animation: fade .25s ease; }
   .letter-dateline { font-size: .88rem; margin-bottom: 20px; }
 }
 
-/* ---------- Lọc theo người viết ---------- */
-.writer-filter {
-  flex: 0 1 240px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 12px 0 14px;
-  min-height: 44px;
+/* ---------- Thư của em: viền phong bì hồng tím ---------- */
+.card.is-partner::before, .letter.is-partner::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 6px;
+  background: repeating-linear-gradient(135deg,
+    var(--accent) 0 12px, transparent 12px 20px,
+    var(--lilac) 20px 32px, transparent 32px 40px);
+  opacity: .8;
+}
+.card.is-partner .seal { background: var(--lilac); }
+
+/* ---------- Màn hình khóa ---------- */
+.lock {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.lock-card {
+  width: min(400px, 100%);
+  text-align: center;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
-  color: var(--muted);
+  border-radius: 24px;
+  padding: 36px 28px 28px;
+  box-shadow: var(--shadow);
+  animation: rise .4s cubic-bezier(.2, .8, .2, 1);
 }
-.writer-filter:focus-within { outline: 3px solid var(--focus); outline-offset: 1px; }
-.writer-filter.is-active { border-color: var(--accent); color: var(--accent); }
-.writer-filter select {
-  flex: 1;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  font: 16px var(--sans);
-  text-overflow: ellipsis;
-  cursor: pointer;
-}
-.letter-more { margin: 4px 0 0; text-align: right; }
-.letter-more:has([hidden]) { display: none; }
-.link-btn {
-  padding: 6px 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font: .88rem var(--sans);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  cursor: pointer;
-}
-.link-btn:hover { color: var(--accent); }
-@media (max-width: 640px) {
-  .writer-filter { flex: 1 1 100%; }
-}
+.lock-card .brand { font-size: 3.4rem; }
+.lock-note { margin: 8px 0 28px; color: var(--muted); font: italic 1rem var(--serif); }
+.lock-form { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.lock-form .btn { width: 100%; margin-top: 4px; }
+.lock-form .form-error { text-align: center; }
+
+.wrap { position: relative; }
+.lock-btn { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 4px; }
