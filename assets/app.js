@@ -6,11 +6,13 @@
   const DEMO = !API_URL;
   const MAX_CONTENT = 5000;
   const KEY_STORAGE = 'iubabi.ownerKey';
+  const HEART_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C1 8.4 3 5 6.4 5c2 0 3.3 1 4.1 2.2h3C14.3 6 15.6 5 17.6 5 21 5 23 8.4 21.6 11.7 19.5 16.4 12 21 12 21z"/></svg>';
 
   const $ = (sel) => document.querySelector(sel);
   const el = {
     grid: $('#grid'),
     status: $('#status'),
+    heroStat: $('#heroStat'),
     search: $('#search'),
     tabs: document.querySelectorAll('.tabs [data-filter]'),
     readDialog: $('#readDialog'),
@@ -38,14 +40,11 @@
     list() {
       const saved = JSON.parse(store.get(this.KEY) || 'null');
       if (saved) return saved;
-      const seed = [
-        {
-          id: 'demo-1', type: 'owner', author: cfg.OWNER_NAME || 'Chủ trang',
-          title: 'Lá thư đầu tiên',
-          content: 'Chào bạn,\n\nĐây là lá thư mẫu ở chế độ thử. Khi nối với Google Sheets, những lá thư thật sẽ hiện ở đây.\n\nThân mến.',
-          createdAt: new Date().toISOString(),
-        },
-      ];
+      const seed = [{
+        id: 'demo-1', type: 'owner', author: cfg.OWNER_NAME || 'Chủ trang', title: '',
+        content: 'Thành phố Hồ Chí Minh, ngày 1 tháng 1 năm 2026\n\nĐây là lá thư mẫu ở chế độ thử.\n\nKhi nối với Google Sheets, những lá thư thật sẽ hiện ở đây.',
+        createdAt: new Date().toISOString(),
+      }];
       store.set(this.KEY, JSON.stringify(seed));
       return seed;
     },
@@ -82,21 +81,52 @@
     return data;
   }
 
+  // ---------- Chuẩn bị dữ liệu ----------
+  // Thư có thể mở đầu bằng dòng "Nơi chốn, ngày 21 tháng 6 năm 2025" — tách riêng để trình bày.
+  const DATELINE = /ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})\s*$/i;
+
+  function parseContent(content) {
+    const text = String(content || '').replace(/\r\n/g, '\n').trim();
+    const firstBreak = text.indexOf('\n');
+    const firstLine = (firstBreak < 0 ? text : text.slice(0, firstBreak)).trim();
+    const m = firstLine.length <= 100 && firstLine.match(DATELINE);
+    const body = m ? text.slice(firstLine.length).trim() : text;
+    return {
+      dateline: m ? firstLine : '',
+      date: m ? new Date(+m[3], +m[2] - 1, +m[1]) : null,
+      paragraphs: body.split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean),
+    };
+  }
+
+  function prepare(letters) {
+    const list = letters.map((l) => {
+      const parsed = parseContent(l.content);
+      return { ...l, ...parsed, excerpt: parsed.paragraphs.join(' ').replace(/\s+/g, ' ') };
+    });
+    list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Đánh số thư của chủ trang theo thứ tự gửi: lá thư số 1, số 2…
+    list.filter((l) => l.type === 'owner').reverse().forEach((l, i) => { l.number = i + 1; });
+    return list;
+  }
+
   // ---------- Hiển thị ----------
-  const dateFmt = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const longDateFmt = new Intl.DateTimeFormat('vi-VN', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
-  const formatDate = (iso, fmt = dateFmt) => {
-    const d = new Date(iso);
-    return isNaN(d) ? '' : fmt.format(d);
+  const shortDate = new Intl.DateTimeFormat('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' });
+  const letterDate = (l) => {
+    const d = l.date || new Date(l.createdAt);
+    return isNaN(d) ? null : d;
   };
+  const titleOf = (l) => l.title || (l.number ? `Lá thư số ${l.number}` : 'Một lá thư');
 
   const node = (tag, className, text) => {
     const n = document.createElement(tag);
     if (className) n.className = className;
     if (text != null) n.textContent = text;
     return n;
+  };
+  const seal = () => {
+    const s = node('span', 'seal');
+    s.innerHTML = HEART_SVG;
+    return s;
   };
 
   function visibleLetters() {
@@ -111,46 +141,76 @@
   function render() {
     const counts = { all: state.letters.length, owner: 0, guest: 0 };
     state.letters.forEach((l) => { counts[l.type] = (counts[l.type] || 0) + 1; });
-    document.querySelectorAll('[data-count]').forEach((n) => { n.textContent = counts[n.dataset.count] || 0; });
+    document.querySelectorAll('[data-count]').forEach((n) => { n.textContent = counts[n.dataset.count] || ''; });
+    el.heroStat.hidden = !counts.all;
+    el.heroStat.textContent = `${counts.all} lá thư đã được gửi`;
 
     const list = visibleLetters();
     el.grid.replaceChildren(...list.map(card));
-    if (list.length) {
-      el.status.hidden = true;
-    } else {
-      el.status.hidden = false;
-      el.status.textContent = state.letters.length
-        ? 'Không có lá thư nào khớp.'
-        : 'Chưa có lá thư nào. Hãy là người viết đầu tiên.';
-    }
+    el.status.hidden = list.length > 0;
+    el.status.textContent = state.letters.length
+      ? 'Không có lá thư nào khớp.'
+      : 'Chưa có lá thư nào. Hãy là người viết đầu tiên.';
   }
 
-  function card(letter) {
-    const btn = node('button', 'card' + (letter.type === 'owner' ? ' is-owner' : ''));
+  function card(letter, index) {
+    const owner = letter.type === 'owner';
+    const btn = node('button', 'card' + (owner ? ' is-owner' : ''));
     btn.type = 'button';
-    if (letter.type === 'owner') btn.append(node('span', 'badge', 'Thư của tôi'));
+    btn.style.animationDelay = `${Math.min(index, 8) * 40}ms`;
+
+    const d = letterDate(letter);
     btn.append(
-      node('h3', 'card-title', letter.title || 'Không tiêu đề'),
-      node('p', 'card-excerpt', letter.content),
+      node('span', 'card-kicker', d ? shortDate.format(d) : ''),
+      node('h3', 'card-title', titleOf(letter)),
+      node('p', 'card-excerpt', letter.excerpt),
     );
-    const meta = node('div', 'card-meta');
-    meta.append(node('span', '', letter.author || 'Ẩn danh'), node('span', '', formatDate(letter.createdAt)));
-    btn.append(meta);
+    const foot = node('div', 'card-foot');
+    foot.append(node('span', 'card-author', letter.author || 'Ẩn danh'));
+    if (owner) foot.append(seal());
+    btn.append(foot);
+
     btn.addEventListener('click', () => { location.hash = 'thu/' + encodeURIComponent(letter.id); });
     return btn;
+  }
+
+  function skeletons(n) {
+    return Array.from({ length: n }, () => {
+      const c = node('div', 'card skeleton');
+      c.setAttribute('aria-hidden', 'true');
+      c.append(node('span'), node('span'), node('span'), node('span'));
+      return c;
+    });
   }
 
   function openLetter(id) {
     const letter = state.letters.find((l) => l.id === id);
     if (!letter) return;
     state.openId = id;
-    $('#readBadge').textContent = letter.type === 'owner' ? 'Thư của tôi' : '';
-    $('#readTitle').textContent = letter.title || 'Không tiêu đề';
-    $('#readDate').textContent = formatDate(letter.createdAt, longDateFmt);
-    $('#readBody').textContent = letter.content;
-    $('#readAuthor').textContent = '— ' + (letter.author || 'Ẩn danh');
+
+    const d = letterDate(letter);
+    $('#readLetter').classList.toggle('is-owner', letter.type === 'owner');
+    $('#readDateline').textContent = letter.dateline || (d ? 'Ngày ' + shortDate.format(d) : '');
+    $('#readTitle').textContent = titleOf(letter);
+    $('#readBody').replaceChildren(...letter.paragraphs.map((p) => node('p', '', p)));
+    $('#readAuthor').textContent = letter.author || 'Ẩn danh';
+
+    const list = visibleLetters();
+    const pos = list.findIndex((l) => l.id === id);
+    $('#readPos').textContent = pos >= 0 ? `${pos + 1} / ${list.length}` : '';
+    el.readDialog.querySelector('[data-nav="-1"]').disabled = pos <= 0;
+    el.readDialog.querySelector('[data-nav="1"]').disabled = pos < 0 || pos >= list.length - 1;
+
     if (!el.readDialog.open) el.readDialog.showModal();
     el.readDialog.scrollTop = 0;
+  }
+
+  function step(delta) {
+    const list = visibleLetters();
+    const next = list[list.findIndex((l) => l.id === state.openId) + delta];
+    if (!next) return;
+    history.replaceState(null, '', '#thu/' + encodeURIComponent(next.id));
+    openLetter(next.id);
   }
 
   function routeFromHash() {
@@ -168,16 +228,16 @@
   }
 
   async function load() {
-    el.status.hidden = false;
-    el.status.textContent = 'Đang tải thư…';
+    if (!state.letters.length) el.grid.replaceChildren(...skeletons(3));
+    el.status.hidden = true;
     try {
-      const letters = await fetchLetters();
-      state.letters = letters.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      state.letters = prepare(await fetchLetters());
       render();
       routeFromHash();
     } catch (err) {
       console.error(err);
       el.grid.replaceChildren();
+      el.status.hidden = false;
       el.status.textContent = 'Không tải được thư. Vui lòng thử lại sau.';
     }
   }
@@ -203,6 +263,14 @@
     });
   });
 
+  el.readDialog.querySelectorAll('[data-nav]').forEach((b) => {
+    b.addEventListener('click', () => step(Number(b.dataset.nav)));
+  });
+  el.readDialog.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') step(-1);
+    if (e.key === 'ArrowRight') step(1);
+  });
+
   el.readDialog.addEventListener('close', () => {
     state.openId = null;
     if (location.hash) history.replaceState(null, '', location.pathname + location.search);
@@ -218,7 +286,7 @@
     }
   });
 
-  $('#btnWrite').addEventListener('click', () => {
+  document.querySelectorAll('[data-write]').forEach((b) => b.addEventListener('click', () => {
     el.formError.hidden = true;
     const savedKey = store.get(KEY_STORAGE);
     if (savedKey) {
@@ -227,8 +295,7 @@
       el.writeForm.querySelector('.owner-box').open = true;
     }
     el.writeDialog.showModal();
-    el.writeForm.author.focus();
-  });
+  }));
 
   el.writeForm.content.addEventListener('input', () => {
     el.charCount.textContent = `${el.writeForm.content.value.length} / ${MAX_CONTENT}`;
