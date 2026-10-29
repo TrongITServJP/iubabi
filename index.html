@@ -37,7 +37,13 @@
         <button type="button" role="tab" data-filter="owner" aria-selected="false">Thư của tôi <span class="count" data-count="owner"></span></button>
         <button type="button" role="tab" data-filter="guest" aria-selected="false">Thư mọi người <span class="count" data-count="guest"></span></button>
       </div>
-      <label class="search">
+      <label class="pill writer-filter">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/></svg>
+        <select id="writerFilter" aria-label="Lọc theo người viết">
+          <option value="">Tất cả người viết</option>
+        </select>
+      </label>
+      <label class="pill search">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
         <input type="search" id="search" placeholder="Tìm thư…" aria-label="Tìm thư">
       </label>
@@ -75,6 +81,7 @@
       <h2 class="letter-title" id="readTitle"></h2>
       <div class="letter-body" id="readBody"></div>
       <p class="letter-sign" id="readAuthor"></p>
+      <p class="letter-more"><button type="button" class="link-btn" id="btnSameWriter"></button></p>
       <svg class="letter-seal" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C1 8.4 3 5 6.4 5c2 0 3.3 1 4.1 2.2h3C14.3 6 15.6 5 17.6 5 21 5 23 8.4 21.6 11.7 19.5 16.4 12 21 12 21z"/></svg>
     </article>
   </dialog>

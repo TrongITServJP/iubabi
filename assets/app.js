@@ -6,6 +6,8 @@
   const DEMO = !API_URL;
   const MAX_CONTENT = 5000;
   const KEY_STORAGE = 'iubabi.ownerKey';
+  const DEVICE_STORAGE = 'iubabi.deviceId';
+  const AUTHOR_STORAGE = 'iubabi.author';
   const HEART_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.3C1 8.4 3 5 6.4 5c2 0 3.3 1 4.1 2.2h3C14.3 6 15.6 5 17.6 5 21 5 23 8.4 21.6 11.7 19.5 16.4 12 21 12 21z"/></svg>';
 
   const $ = (sel) => document.querySelector(sel);
@@ -14,6 +16,8 @@
     status: $('#status'),
     heroStat: $('#heroStat'),
     search: $('#search'),
+    writerFilter: $('#writerFilter'),
+    btnSameWriter: $('#btnSameWriter'),
     tabs: document.querySelectorAll('.tabs [data-filter]'),
     readDialog: $('#readDialog'),
     writeDialog: $('#writeDialog'),
@@ -24,7 +28,7 @@
     toast: $('#toast'),
   };
 
-  const state = { letters: [], filter: 'all', query: '', openId: null };
+  const state = { letters: [], filter: 'all', writer: '', myWriter: '', query: '', openId: null };
 
   // ---------- Lưu trữ an toàn (localStorage có thể bị chặn) ----------
   const store = {
@@ -32,6 +36,38 @@
     set(key, val) { try { localStorage.setItem(key, val); } catch { /* bỏ qua */ } },
     remove(key) { try { localStorage.removeItem(key); } catch { /* bỏ qua */ } },
   };
+
+  // ---------- Mã thiết bị ----------
+  // Trình duyệt không cho đọc mã máy thật, nên mỗi trình duyệt tự tạo một mã ngẫu nhiên và giữ lại.
+  function getDeviceId() {
+    let id = store.get(DEVICE_STORAGE);
+    if (!id) {
+      id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2);
+      store.set(DEVICE_STORAGE, id);
+    }
+    return id;
+  }
+  const DEVICE_ID = getDeviceId();
+
+  function deviceLabel() {
+    const ua = navigator.userAgent;
+    const os = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android'
+      : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Khác';
+    const browser = /Zalo/i.test(ua) ? 'Zalo' : /FBAN|FBAV/.test(ua) ? 'Facebook' : /Edg\//.test(ua) ? 'Edge'
+      : /OPR\//.test(ua) ? 'Opera' : /CriOS|Chrome\//.test(ua) ? 'Chrome' : /FxiOS|Firefox\//.test(ua) ? 'Firefox'
+      : /Safari\//.test(ua) ? 'Safari' : 'Khác';
+    return `${os} · ${browser}`;
+  }
+
+  // Cùng cách tính với writerId_() trong Code.gs: 10 ký tự hex đầu của SHA-256(mã thiết bị).
+  async function writerIdOf(id) {
+    try {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id));
+      return [...new Uint8Array(buf).slice(0, 5)].map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+      return '';
+    }
+  }
 
   // ---------- API ----------
   // Chế độ thử: lưu thư trong localStorage để xem giao diện khi chưa có Apps Script.
@@ -57,6 +93,7 @@
         title: payload.title,
         content: payload.content,
         createdAt: new Date().toISOString(),
+        writer: state.myWriter,
       };
       letters.unshift(letter);
       store.set(this.KEY, JSON.stringify(letters));
@@ -98,10 +135,15 @@
     };
   }
 
+  // Khóa nhóm người viết: chủ trang → mã thiết bị → (thư cũ chưa có mã) tên.
+  const writerKey = (l) => (l.type === 'owner' ? 'owner'
+    : l.writer ? 'w:' + l.writer
+    : 'n:' + (l.author || 'Ẩn danh').trim().toLowerCase());
+
   function prepare(letters) {
     const list = letters.map((l) => {
       const parsed = parseContent(l.content);
-      return { ...l, ...parsed, excerpt: parsed.paragraphs.join(' ').replace(/\s+/g, ' ') };
+      return { ...l, ...parsed, writerKey: writerKey(l), excerpt: parsed.paragraphs.join(' ').replace(/\s+/g, ' ') };
     });
     list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     // Đánh số thư của chủ trang theo thứ tự gửi: lá thư số 1, số 2…
@@ -133,12 +175,40 @@
     const q = state.query.toLowerCase();
     return state.letters.filter((l) => {
       if (state.filter !== 'all' && l.type !== state.filter) return false;
+      if (state.writer && l.writerKey !== state.writer) return false;
       if (!q) return true;
       return [l.title, l.author, l.content].some((s) => (s || '').toLowerCase().includes(q));
     });
   }
 
+  function renderWriters() {
+    // Thư đã xếp mới nhất trước, nên tên gặp đầu tiên là tên gần đây nhất của người viết đó.
+    const writers = new Map();
+    state.letters.forEach((l) => {
+      const w = writers.get(l.writerKey) || { name: l.author || 'Ẩn danh', count: 0 };
+      w.count += 1;
+      writers.set(l.writerKey, w);
+    });
+    if (state.writer && !writers.has(state.writer)) state.writer = '';
+
+    const sameName = {};
+    writers.forEach((w) => { sameName[w.name] = (sameName[w.name] || 0) + 1; });
+    const options = [...writers]
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([key, w]) => {
+        let label = w.name;
+        if (key === 'owner') label += ' (chủ trang)';
+        else if (state.myWriter && key === 'w:' + state.myWriter) label += ' (bạn)';
+        else if (sameName[w.name] > 1 && key.startsWith('w:')) label += ' · #' + key.slice(2, 6);
+        return new Option(`${label} — ${w.count} thư`, key);
+      });
+    el.writerFilter.replaceChildren(new Option('Tất cả người viết', ''), ...options);
+    el.writerFilter.value = state.writer;
+    el.writerFilter.closest('.writer-filter').classList.toggle('is-active', Boolean(state.writer));
+  }
+
   function render() {
+    renderWriters();
     const counts = { all: state.letters.length, owner: 0, guest: 0 };
     state.letters.forEach((l) => { counts[l.type] = (counts[l.type] || 0) + 1; });
     document.querySelectorAll('[data-count]').forEach((n) => { n.textContent = counts[n.dataset.count] || ''; });
@@ -194,6 +264,9 @@
     $('#readTitle').textContent = titleOf(letter);
     $('#readBody').replaceChildren(...letter.paragraphs.map((p) => node('p', '', p)));
     $('#readAuthor').textContent = letter.author || 'Ẩn danh';
+    const sameWriter = state.letters.filter((l) => l.writerKey === letter.writerKey).length;
+    el.btnSameWriter.hidden = sameWriter < 2 || state.writer === letter.writerKey;
+    el.btnSameWriter.textContent = `Xem cả ${sameWriter} thư của ${letter.author || 'Ẩn danh'}`;
 
     const list = visibleLetters();
     const pos = list.findIndex((l) => l.id === id);
@@ -256,6 +329,22 @@
     render();
   });
 
+  el.writerFilter.addEventListener('change', () => {
+    state.writer = el.writerFilter.value;
+    render();
+  });
+
+  el.btnSameWriter.addEventListener('click', () => {
+    const letter = state.letters.find((l) => l.id === state.openId);
+    if (!letter) return;
+    state.writer = letter.writerKey;
+    state.filter = 'all';
+    el.tabs.forEach((t) => t.setAttribute('aria-selected', String(t.dataset.filter === 'all')));
+    el.readDialog.close();
+    render();
+    window.scrollTo({ top: el.grid.getBoundingClientRect().top + window.scrollY - 140, behavior: 'smooth' });
+  });
+
   // Đóng dialog: nút [data-close] hoặc bấm ra ngoài khung
   [el.readDialog, el.writeDialog].forEach((dlg) => {
     dlg.addEventListener('click', (e) => {
@@ -294,6 +383,7 @@
       el.writeForm.rememberKey.checked = true;
       el.writeForm.querySelector('.owner-box').open = true;
     }
+    if (!el.writeForm.author.value) el.writeForm.author.value = store.get(AUTHOR_STORAGE) || '';
     el.writeDialog.showModal();
   }));
 
@@ -311,6 +401,8 @@
       content: f.content.value.trim(),
       website: f.website.value, // bẫy bot
       ownerKey,
+      deviceId: DEVICE_ID,
+      device: deviceLabel(),
     };
 
     if (!payload.content) {
@@ -327,6 +419,7 @@
       const result = await sendLetter(payload);
       if (ownerKey && f.rememberKey.checked) store.set(KEY_STORAGE, ownerKey);
       else store.remove(KEY_STORAGE);
+      if (f.author.value.trim()) store.set(AUTHOR_STORAGE, f.author.value.trim());
       f.reset();
       el.charCount.textContent = `0 / ${MAX_CONTENT}`;
       el.writeDialog.close();
@@ -353,5 +446,9 @@
   if (cfg.TAGLINE) $('#siteTagline').textContent = cfg.TAGLINE;
   $('#demoNotice').hidden = !DEMO;
 
+  writerIdOf(DEVICE_ID).then((id) => {
+    state.myWriter = id;
+    if (state.letters.length) render();
+  });
   load();
 })();

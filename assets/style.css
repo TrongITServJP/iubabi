@@ -542,3 +542,47 @@ dialog.sheet[open]::backdrop { animation: fade .25s ease; }
 @media (max-width: 640px) {
   .letter-dateline { font-size: .88rem; margin-bottom: 20px; }
 }
+
+/* ---------- Lọc theo người viết ---------- */
+.writer-filter {
+  flex: 0 1 240px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px 0 14px;
+  min-height: 44px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  color: var(--muted);
+}
+.writer-filter:focus-within { outline: 3px solid var(--focus); outline-offset: 1px; }
+.writer-filter.is-active { border-color: var(--accent); color: var(--accent); }
+.writer-filter select {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 16px var(--sans);
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.letter-more { margin: 4px 0 0; text-align: right; }
+.letter-more:has([hidden]) { display: none; }
+.link-btn {
+  padding: 6px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: .88rem var(--sans);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.link-btn:hover { color: var(--accent); }
+@media (max-width: 640px) {
+  .writer-filter { flex: 1 1 100%; }
+}

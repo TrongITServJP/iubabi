@@ -49,6 +49,13 @@ Khi `API_URL` còn trống, trang chạy ở **chế độ thử**: thư chỉ l
 |----------|---------|
 | `type`   | `owner` = thư của chủ trang, `guest` = thư người dùng |
 | `status` | `show` = hiện, `hide` = ẩn, `pending` = chờ duyệt |
+| `deviceId` | Mã ngẫu nhiên do trình duyệt của người viết tự tạo — cùng mã = cùng một người |
+| `device` | Loại thiết bị, ví dụ `iPhone · Safari`, `Android · Zalo` |
+
+Muốn xem mọi thư của một người: bật **Dữ liệu → Tạo bộ lọc** trong sheet rồi lọc cột `deviceId`.
+Trên web, mã thiết bị không bị lộ: trang chỉ nhận một mã rút gọn (băm SHA-256) để nhóm thư theo người viết.
+Lưu ý: xóa dữ liệu trình duyệt, dùng tab ẩn danh, hoặc mở bằng trình duyệt khác (kể cả trình duyệt trong Zalo/Facebook)
+thì được coi là thiết bị mới.
 
 Muốn duyệt thư trước khi hiện: trong Apps Script vào **Cài đặt dự án → Thuộc tính tập lệnh**,
 thêm `REQUIRE_APPROVAL` = `true`. Thư mới của người dùng sẽ ở trạng thái `pending`,

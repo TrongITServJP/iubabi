@@ -2,9 +2,11 @@
  * Backend cho trang thư iubabi — chạy trong Google Apps Script gắn với một Google Sheet.
  *
  * Cột trong sheet "Letters":
- *   id | createdAt | author | title | content | type | status
- *   - type:   owner (thư của chủ trang) | guest (thư người dùng)
- *   - status: show (hiện) | hide (ẩn) | pending (chờ duyệt)
+ *   id | createdAt | author | title | content | type | status | deviceId | device
+ *   - type:     owner (thư của chủ trang) | guest (thư người dùng)
+ *   - status:   show (hiện) | hide (ẩn) | pending (chờ duyệt)
+ *   - deviceId: mã ngẫu nhiên mà mỗi trình duyệt tự tạo, cùng mã = cùng người viết (chỉ lưu trong sheet)
+ *   - device:   loại thiết bị, ví dụ "iPhone · Safari"
  *
  * Chủ trang có thể gõ thư trực tiếp vào sheet: chỉ cần điền createdAt, author, title, content;
  * để trống type thì được coi là thư của chủ trang, để trống status thì thư được hiện.
@@ -15,8 +17,8 @@
  */
 
 const SHEET_NAME = 'Letters';
-const HEADERS = ['id', 'createdAt', 'author', 'title', 'content', 'type', 'status'];
-const LIMITS = { author: 50, title: 120, content: 5000 };
+const HEADERS = ['id', 'createdAt', 'author', 'title', 'content', 'type', 'status', 'deviceId', 'device'];
+const LIMITS = { author: 50, title: 120, content: 5000, device: 60 };
 
 /** Chạy một lần trong trình soạn Apps Script để tạo sheet và cấp quyền. */
 function setup() {
@@ -40,6 +42,7 @@ function doGet() {
       title: String(row[3] || ''),
       content: String(row[4]),
       type: String(row[5]).trim() === 'guest' ? 'guest' : 'owner',
+      writer: writerId_(row[7]),
     }));
   return json_({ ok: true, letters: letters });
 }
@@ -67,6 +70,7 @@ function doPost(e) {
   const needApproval = props.getProperty('REQUIRE_APPROVAL') === 'true';
   const status = isOwner || !needApproval ? 'show' : 'pending';
   const id = Utilities.getUuid();
+  const deviceId = /^[A-Za-z0-9-]{8,64}$/.test(String(body.deviceId)) ? String(body.deviceId) : '';
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -79,6 +83,8 @@ function doPost(e) {
       safeCell_(content),
       isOwner ? 'owner' : 'guest',
       status,
+      deviceId,
+      safeCell_(clean_(body.device, LIMITS.device)),
     ]);
   } finally {
     lock.releaseLock();
@@ -97,8 +103,21 @@ function getSheet_() {
     const rule = (values) => SpreadsheetApp.newDataValidation().requireValueInList(values, true).build();
     sheet.getRange('F2:F').setDataValidation(rule(['owner', 'guest']));
     sheet.getRange('G2:G').setDataValidation(rule(['show', 'hide', 'pending']));
+  } else if (sheet.getRange(1, HEADERS.length).getValue() !== HEADERS[HEADERS.length - 1]) {
+    // Sheet tạo từ phiên bản cũ: bổ sung tiêu đề các cột mới.
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
   }
   return sheet;
+}
+
+/**
+ * Mã người viết công khai: 10 ký tự hex đầu của SHA-256(deviceId).
+ * Đủ để nhóm thư cùng một người mà không lộ mã thiết bị gốc. Cùng cách tính với writerIdOf() trong app.js.
+ */
+function writerId_(deviceId) {
+  if (!deviceId) return '';
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(deviceId), Utilities.Charset.UTF_8);
+  return bytes.slice(0, 5).map((b) => ((b + 256) % 256).toString(16).padStart(2, '0')).join('');
 }
 
 function isVisible_(status) {
