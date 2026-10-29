@@ -7,6 +7,8 @@
   const MAX_CONTENT = 5000;
   const KEY_STORAGE = 'iubabi.key';
   const DEVICE_STORAGE = 'iubabi.deviceId';
+  const PUSH_STORAGE = 'iubabi.pushEndpoint';
+  const READ_STORAGE = 'iubabi.read';
   const NAMES = { owner: cfg.OWNER_NAME || 'Anh', partner: cfg.PARTNER_NAME || 'Em' };
 
   const $ = (sel) => document.querySelector(sel);
@@ -28,9 +30,12 @@
     btnSend: $('#btnSend'),
     charCount: $('#charCount'),
     toast: $('#toast'),
+    btnInstall: $('#btnInstall'),
+    btnNotify: $('#btnNotify'),
+    helpDialog: $('#helpDialog'),
   };
 
-  const state = { key: '', role: '', letters: [], filter: 'all', query: '', openId: null };
+  const state = { key: '', role: '', pushKey: '', letters: [], signature: '', filter: 'all', query: '', openId: null };
 
   // ---------- Lưu trữ an toàn (localStorage có thể bị chặn) ----------
   const store = {
@@ -105,11 +110,27 @@
     return checked(await res.json());
   }
 
-  async function sendLetter(payload) {
-    if (DEMO) return demo.add(payload);
+  async function post(body) {
     // Không đặt Content-Type để trình duyệt gửi text/plain → không bị preflight CORS với Apps Script.
-    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ ...payload, key: state.key }) });
+    const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ ...body, key: state.key }) });
     return checked(await res.json());
+  }
+
+  const sendLetter = (payload) => (DEMO ? demo.add(payload) : post(payload));
+
+  // ---------- Thư chưa đọc (ghi nhớ theo từng máy) ----------
+  const readIds = new Set((() => {
+    try { return JSON.parse(store.get(READ_STORAGE) || '[]'); } catch { return []; }
+  })());
+  const isNew = (l) => l.type !== state.role && !readIds.has(l.id);
+
+  function markRead(id) {
+    if (readIds.has(id)) return;
+    readIds.add(id);
+    store.set(READ_STORAGE, JSON.stringify([...readIds].slice(-1000)));
+    const c = el.grid.querySelector(`[data-id="${CSS.escape(id)}"]`);
+    if (c) c.classList.remove('is-new');
+    updateStats();
   }
 
   // ---------- Chuẩn bị dữ liệu ----------
@@ -172,13 +193,19 @@
     });
   }
 
-  function render() {
+  function updateStats() {
     const counts = { all: state.letters.length, owner: 0, partner: 0 };
     state.letters.forEach((l) => { counts[l.type] += 1; });
     document.querySelectorAll('[data-count]').forEach((n) => { n.textContent = counts[n.dataset.count] || ''; });
+    const unread = state.letters.filter(isNew).length;
     el.heroStat.hidden = !counts.all;
-    el.heroStat.textContent = `${counts.all} lá thư`;
+    el.heroStat.textContent = `${counts.all} lá thư` + (unread ? ` · ${unread} thư mới` : '');
+    // Số trên biểu tượng app (khi đã cài)
+    if (navigator.setAppBadge) (unread ? navigator.setAppBadge(unread) : navigator.clearAppBadge()).catch(() => {});
+  }
 
+  function render() {
+    updateStats();
     const list = visibleLetters();
     el.grid.replaceChildren(...list.map(card));
     el.status.hidden = list.length > 0;
@@ -186,13 +213,16 @@
   }
 
   function card(letter, index) {
-    const btn = node('button', 'card is-' + letter.type);
+    const btn = node('button', 'card is-' + letter.type + (isNew(letter) ? ' is-new' : ''));
     btn.type = 'button';
+    btn.dataset.id = letter.id;
     btn.style.animationDelay = `${Math.min(index, 8) * 40}ms`;
 
     const d = letterDate(letter);
+    const kicker = node('span', 'card-kicker', d ? shortDate.format(d) : '');
+    kicker.append(node('span', 'new-pill', 'Mới'));
     btn.append(
-      node('span', 'card-kicker', d ? shortDate.format(d) : ''),
+      kicker,
       node('h3', 'card-title', titleOf(letter)),
       node('p', 'card-excerpt', letter.excerpt),
     );
@@ -217,6 +247,7 @@
     const letter = state.letters.find((l) => l.id === id);
     if (!letter) return;
     state.openId = id;
+    markRead(id);
 
     const d = letterDate(letter);
     $('#readLetter').className = 'letter is-' + letter.type;
@@ -267,7 +298,7 @@
     state.key = '';
     state.letters = [];
     store.remove(KEY_STORAGE);
-    [el.readDialog, el.writeDialog].forEach((d) => d.open && d.close());
+    [el.readDialog, el.writeDialog, el.helpDialog].forEach((d) => d.open && d.close());
     el.grid.replaceChildren();
     el.lockForm.reset();
     el.lockError.textContent = message || '';
@@ -278,9 +309,17 @@
 
   function applyData(data) {
     state.role = data.role === 'partner' ? 'partner' : 'owner';
-    state.letters = prepare(data.letters);
-    render();
+    state.pushKey = data.push || '';
+    // Mở lại app mà không có gì thay đổi thì giữ nguyên danh sách (tránh nháy lại hiệu ứng).
+    const signature = data.letters.map((l) => l.id + ':' + l.content.length).join();
+    if (signature !== state.signature || !el.grid.querySelector('.card:not(.skeleton)')) {
+      state.signature = signature;
+      state.letters = prepare(data.letters);
+      render();
+    }
     routeFromHash();
+    syncSubscription();
+    updateAppButtons();
   }
 
   async function load() {
@@ -324,7 +363,144 @@
     }
   });
 
-  $('#btnLock').addEventListener('click', () => lock());
+  // Khóa lại trên máy này thì cũng ngừng nhận thông báo ở máy này.
+  $('#btnLock').addEventListener('click', async () => {
+    const sub = await currentSubscription();
+    if (sub) {
+      post({ action: 'unsubscribe', endpoint: sub.endpoint }).catch(() => {});
+      sub.unsubscribe().catch(() => {});
+      store.remove(PUSH_STORAGE);
+    }
+    lock();
+  });
+
+  // ---------- Cài app & thông báo ----------
+  const UA = navigator.userAgent;
+  const IS_IOS = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const IN_APP_BROWSER = /Zalo|FBAN|FBAV|Instagram|Line\//i.test(UA);
+  const PUSH_SUPPORTED = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  let installPrompt = null;
+  let swReg = null;
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js')
+      .then((reg) => { swReg = reg; syncSubscription(); updateAppButtons(); })
+      .catch((err) => console.warn('Không đăng ký được service worker:', err));
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // tự hiện nút "Tải app" thay cho thanh gợi ý mặc định
+    installPrompt = e;
+    updateAppButtons();
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    updateAppButtons();
+    toast('Đã cài app iubabi 💌');
+  });
+
+  const currentSubscription = async () => (PUSH_SUPPORTED && swReg ? swReg.pushManager.getSubscription() : null);
+
+  async function updateAppButtons() {
+    const standalone = isStandalone();
+    el.btnInstall.hidden = standalone || !(installPrompt || IS_IOS || IN_APP_BROWSER || /Android/.test(UA));
+
+    const subscribed = Boolean(await currentSubscription());
+    const canSubscribe = PUSH_SUPPORTED && Notification.permission !== 'denied';
+    const iosNeedsInstall = IS_IOS && !standalone; // iPhone chỉ nhận thông báo khi đã thêm vào màn hình chính
+    el.btnNotify.hidden = DEMO || !state.pushKey || subscribed || !(canSubscribe || iosNeedsInstall);
+  }
+
+  // Báo cho máy chủ biết máy này đang nhận thông báo (chỉ gửi lại khi endpoint thay đổi).
+  async function syncSubscription(force) {
+    if (DEMO || !state.key || !state.pushKey) return;
+    const sub = await currentSubscription();
+    if (!sub || (!force && store.get(PUSH_STORAGE) === sub.endpoint)) return;
+    await post({ action: 'subscribe', endpoint: sub.endpoint, device: deviceLabel() });
+    store.set(PUSH_STORAGE, sub.endpoint);
+  }
+
+  function b64urlToBytes(s) {
+    const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+    return Uint8Array.from(bin, (ch) => ch.charCodeAt(0));
+  }
+
+  el.btnInstall.addEventListener('click', async () => {
+    if (installPrompt) {
+      installPrompt.prompt();
+      await installPrompt.userChoice;
+      installPrompt = null;
+      updateAppButtons();
+      return;
+    }
+    showHelp('install');
+  });
+
+  el.btnNotify.addEventListener('click', async () => {
+    if (!PUSH_SUPPORTED || !swReg) {
+      showHelp('notify');
+      return;
+    }
+    try {
+      if ((await Notification.requestPermission()) !== 'granted') {
+        toast('Chưa được cho phép gửi thông báo.');
+        return;
+      }
+      await swReg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(state.pushKey) });
+      await syncSubscription(true);
+      toast('Đã bật thông báo 🔔');
+    } catch (err) {
+      console.error(err);
+      toast('Chưa bật được thông báo, thử lại sau nhé.');
+    } finally {
+      updateAppButtons();
+    }
+  });
+
+  function showHelp(kind) {
+    let title;
+    let steps;
+    let note = '';
+    if (IN_APP_BROWSER) {
+      title = 'Mở bằng trình duyệt';
+      steps = [
+        'Nhấn nút ⋯ (hoặc ⋮) ở góc trên màn hình.',
+        IS_IOS ? 'Chọn "Mở bằng Safari".' : 'Chọn "Mở bằng trình duyệt" (Chrome).',
+        'Trên trình duyệt, bấm lại nút "Tải app".',
+      ];
+      note = 'Trình duyệt bên trong Zalo / Facebook không cài được app và không nhận được thông báo.';
+    } else if (IS_IOS) {
+      title = kind === 'install' ? 'Thêm iubabi vào màn hình chính' : 'Bật thông báo trên iPhone';
+      steps = [
+        'Mở trang này bằng Safari.',
+        'Nhấn nút Chia sẻ (hình vuông có mũi tên hướng lên) ở thanh dưới.',
+        'Chọn "Thêm vào MH chính", rồi nhấn "Thêm".',
+        'Mở iubabi từ màn hình chính, nhập mã, rồi bấm "Bật thông báo".',
+      ];
+      note = 'iPhone cần iOS 16.4 trở lên mới nhận được thông báo.';
+    } else if (kind === 'install') {
+      title = 'Cài iubabi như app';
+      steps = [
+        'Nhấn nút menu ⋮ của trình duyệt.',
+        'Chọn "Cài đặt ứng dụng" hoặc "Thêm vào màn hình chính".',
+        'Mở iubabi từ màn hình chính.',
+      ];
+    } else {
+      title = 'Chưa bật được thông báo';
+      steps = ['Trình duyệt này chưa hỗ trợ thông báo.', 'Hãy mở bằng Chrome trên Android, hoặc cài app trên iPhone.'];
+    }
+    $('#helpTitle').textContent = title;
+    const ol = node('ol');
+    steps.forEach((s) => ol.append(node('li', '', s)));
+    $('#helpBody').replaceChildren(ol, ...(note ? [node('p', 'help-note', note)] : []));
+    el.helpDialog.showModal();
+  }
+
+  // Quay lại app (từ nền hoặc từ thông báo) thì tải thư mới.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && state.key && !el.app.hidden) load();
+  });
 
   // ---------- Sự kiện ----------
   el.tabs.forEach((tab) => {
@@ -341,7 +517,7 @@
   });
 
   // Đóng dialog: nút [data-close] hoặc bấm ra ngoài khung
-  [el.readDialog, el.writeDialog].forEach((dlg) => {
+  [el.readDialog, el.writeDialog, el.helpDialog].forEach((dlg) => {
     dlg.addEventListener('click', (e) => {
       if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
     });

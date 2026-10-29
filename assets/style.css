@@ -92,7 +92,14 @@ svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 2
   color: var(--muted);
   letter-spacing: .02em;
 }
-.hero-write { margin-top: 24px; }
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 24px;
+}
+.hero-actions .btn-ghost { background: var(--paper); box-shadow: var(--shadow-sm); }
 
 @keyframes beat {
   0%, 100% { transform: scale(1); }
@@ -584,3 +591,31 @@ dialog.sheet[open]::backdrop { animation: fade .25s ease; }
 
 .wrap { position: relative; }
 .lock-btn { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 4px; }
+
+/* ---------- Thư chưa đọc ---------- */
+.card-kicker { display: flex; align-items: center; gap: 8px; }
+.new-pill {
+  display: none;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: .7rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+}
+.card.is-new .new-pill { display: inline-block; }
+.card.is-new { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+
+/* ---------- Hướng dẫn cài app / bật thông báo ---------- */
+.help {
+  padding: clamp(20px, 5vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.help .form-head h2 { font-size: 1.7rem; }
+.help-body ol { margin: 0; padding-left: 1.4em; line-height: 1.8; }
+.help-body li + li { margin-top: 6px; }
+.help-note { margin: 14px 0 0; color: var(--muted); font-size: .9rem; }
+.help-body:focus { outline: none; }

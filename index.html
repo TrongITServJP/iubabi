@@ -8,7 +8,13 @@
   <meta name="theme-color" content="#fbf4ef" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#1d1718" media="(prefers-color-scheme: dark)">
   <title>iubabi</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💌</text></svg>">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="iubabi">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Dancing+Script:wght@500;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap">
@@ -45,10 +51,20 @@
         <h1 class="brand" data-site-title>iubabi</h1>
         <p class="tagline" id="siteTagline">Những lá thư gửi nhau</p>
         <p class="hero-stat" id="heroStat" hidden></p>
-        <button class="btn btn-primary hero-write" type="button" data-write>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
-          Viết thư
-        </button>
+        <div class="hero-actions">
+          <button class="btn btn-primary hero-write" type="button" data-write>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
+            Viết thư
+          </button>
+          <button class="btn btn-ghost" type="button" id="btnInstall" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+            Tải app
+          </button>
+          <button class="btn btn-ghost" type="button" id="btnNotify" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16zM10 20a2 2 0 0 0 4 0"/></svg>
+            Bật thông báo
+          </button>
+        </div>
       </header>
 
       <div class="notice" id="demoNotice" hidden>
@@ -136,6 +152,21 @@
         <button type="submit" class="btn btn-primary" id="btnSend">Gửi thư</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="helpDialog" class="sheet" aria-labelledby="helpTitle">
+    <div class="help">
+      <div class="form-head">
+        <h2 id="helpTitle"></h2>
+        <button type="button" class="icon-btn" data-close aria-label="Đóng">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+      </div>
+      <div class="help-body" id="helpBody" tabindex="-1" autofocus></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" data-close>Đã hiểu</button>
+      </div>
+    </div>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>

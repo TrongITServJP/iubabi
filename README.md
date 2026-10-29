@@ -15,7 +15,8 @@ GitHub Pages (index.html, assets/, config.js)
 1. Tạo một Google Sheet mới. **Giữ chế độ chia sẻ "Bị hạn chế"** (chỉ mình bạn).
 2. Trong sheet: **Tiện ích mở rộng → Apps Script**.
 3. Dán toàn bộ nội dung [`apps-script/Code.gs`](apps-script/Code.gs), bấm **Lưu**.
-4. Chọn hàm `setup` → **Chạy** → cấp quyền. Mở **Nhật ký thực thi** để xem hai mã:
+4. Chọn hàm `setup` → **Chạy** → cấp quyền (gồm quyền gọi dịch vụ bên ngoài để gửi thông báo).
+   Mở **Nhật ký thực thi** để xem hai mã:
    - `OWNER_KEY` — mã của anh
    - `PARTNER_KEY` — mã của em
 5. **Triển khai → Tùy chọn triển khai mới → Ứng dụng web**:
@@ -28,6 +29,16 @@ GitHub Pages (index.html, assets/, config.js)
 
 Sau khi sửa `Code.gs`: **Triển khai → Quản lý các bản triển khai → ✏️ → Phiên bản: Phiên bản mới → Triển khai**.
 URL `/exec` giữ nguyên. Nên chạy lại `setup` để cập nhật tiêu đề cột và danh sách chọn trong sheet.
+
+### Cài như app & thông báo thư mới
+
+- Trang là một PWA: nút **Tải app** cài thẳng trên Android (Chrome); trên iPhone nút này hiện hướng dẫn
+  *Chia sẻ → Thêm vào MH chính*.
+- Bấm **Bật thông báo** để nhận thông báo khi người kia gửi thư (Web Push). iPhone cần iOS 16.4+ và phải
+  mở từ biểu tượng trên màn hình chính. Thông báo không chứa nội dung thư.
+- Các máy đã bật thông báo nằm trong sheet `Subscriptions`. Chạy hàm `testPush` trong Apps Script để gửi thử
+  và xem mã phản hồi (201 = thành công).
+- Bấm 🔒 *Khóa lại* trên một máy cũng hủy thông báo trên máy đó.
 
 ### Đổi mã bí mật
 
@@ -65,7 +76,9 @@ Có thể gõ thư thẳng vào sheet: điền `createdAt`, `author`, `title`, `
 ```
 index.html          Giao diện (màn hình khóa + danh sách thư)
 assets/style.css    Kiểu dáng (tự đổi sáng/tối theo hệ thống)
-assets/app.js       Logic: mở khóa, tải thư, lọc, tìm kiếm, đọc, gửi thư
+assets/app.js       Logic: mở khóa, tải thư, lọc, tìm kiếm, đọc, gửi thư, cài app, thông báo
+sw.js               Service worker: chạy như app, mở khi mạng yếu, nhận thông báo
+manifest.webmanifest, icons/  Thông tin và biểu tượng app
 config.js           URL Apps Script, tên trang, chữ ký mặc định
-apps-script/Code.gs Backend: kiểm tra mã, đọc/ghi Google Sheets
+apps-script/Code.gs Backend: kiểm tra mã, đọc/ghi Google Sheets, gửi Web Push (ký VAPID)
 ```
