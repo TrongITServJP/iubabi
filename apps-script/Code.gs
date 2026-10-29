@@ -206,6 +206,12 @@ function notify_(role) {
 // Apps Script không có sẵn ECDSA nên tự tính bằng BigInt. Thông báo gửi đi không kèm nội dung
 // nên không cần mã hóa payload, chỉ cần ký JWT.
 
+// Apps Script không đọc được số BigInt viết dạng 0n, 1n… nên tạo bằng hàm BigInt().
+const N0 = BigInt(0);
+const N1 = BigInt(1);
+const N2 = BigInt(2);
+const N3 = BigInt(3);
+
 const EC = {
   p: BigInt('0xffffffff00000001000000000000000000000000ffffffffffffffffffffffff'),
   n: BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551'),
@@ -237,7 +243,7 @@ function ecSign_(message, d) {
     const k = randomScalar_();
     const r = mod_(ecMul_(k, EC.G)[0], EC.n);
     const s = mod_(inv_(k, EC.n) * (e + r * d), EC.n);
-    if (r > 0n && s > 0n) return intToBytes_(r).concat(intToBytes_(s));
+    if (r > N0 && s > N0) return intToBytes_(r).concat(intToBytes_(s));
   }
 }
 
@@ -246,7 +252,7 @@ function randomScalar_() {
   for (;;) {
     const seed = [0, 1, 2, 3].map(() => Utilities.getUuid()).join('') + Date.now();
     const k = mod_(bytesToInt_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, seed)), EC.n);
-    if (k > 0n) return k;
+    if (k > N0) return k;
   }
 }
 
@@ -256,8 +262,8 @@ function ecAdd_(P, Q) {
   const p = EC.p;
   let l;
   if (P[0] === Q[0]) {
-    if (mod_(P[1] + Q[1], p) === 0n) return null;
-    l = mod_((3n * P[0] * P[0] - 3n) * inv_(2n * P[1], p), p); // a = -3
+    if (mod_(P[1] + Q[1], p) === N0) return null;
+    l = mod_((N3 * P[0] * P[0] - N3) * inv_(N2 * P[1], p), p); // a = -3
   } else {
     l = mod_((Q[1] - P[1]) * inv_(Q[0] - P[0], p), p);
   }
@@ -268,23 +274,23 @@ function ecAdd_(P, Q) {
 function ecMul_(k, P) {
   let result = null;
   let addend = P;
-  while (k > 0n) {
-    if (k & 1n) result = ecAdd_(result, addend);
+  while (k > N0) {
+    if (k & N1) result = ecAdd_(result, addend);
     addend = ecAdd_(addend, addend);
-    k >>= 1n;
+    k >>= N1;
   }
   return result;
 }
 
 function mod_(a, m) {
   const r = a % m;
-  return r < 0n ? r + m : r;
+  return r < N0 ? r + m : r;
 }
 
 function inv_(a, m) {
   let [r0, r1] = [mod_(a, m), m];
-  let [s0, s1] = [1n, 0n];
-  while (r1 !== 0n) {
+  let [s0, s1] = [N1, N0];
+  while (r1 !== N0) {
     const q = r0 / r1;
     [r0, r1] = [r1, r0 - q * r1];
     [s0, s1] = [s1, s0 - q * s1];
